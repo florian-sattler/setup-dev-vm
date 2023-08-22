@@ -76,6 +76,11 @@ sudo apt install -qq -y code
 
 # azure devops
 
+if [ ! -d "$HOME/.ssh" ]; then
+    mkdir $HOME/.ssh
+    chmod 700 $HOME/.ssh
+fi
+
 cat <<'EOF' >>~/.ssh/config
 Host ssh.dev.azure.com
     User git
