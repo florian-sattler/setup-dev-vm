@@ -11,5 +11,5 @@ curl -sSL https://setup-dev-vm.florian-sattler.de | bash
 or
 
 ```bash
-wget -O - https://setup-dev-vm.florian-sattler.de | bash
+wget -qO- https://setup-dev-vm.florian-sattler.de | bash
 ```
