@@ -45,7 +45,9 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
 fi
 
 # utils
-echo "alias up='sudo apt update && sudo apt full-upgrade --auto-remove -y'" >>~/.zshrc
+if ! grep -Fq "alias up=" ~/.zshrc; then
+    echo "alias up='sudo apt update && sudo apt full-upgrade --auto-remove -y'" >>~/.zshrc
+fi
 
 # usefull helpers and python dependencies
 sudo apt install -y -qq curl htop zlib1g-dev atool arc arj lzip lzop nomarch p7zip-full rar rpm unace unalz unrar libncursesw5-dev libreadline-dev libssl-dev libgdbm-dev libc6-dev libsqlite3-dev libbz2-dev libffi-dev lzma-dev tk-dev liblzma-dev nano
