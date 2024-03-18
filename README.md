@@ -5,11 +5,11 @@ A development setup script for Ubuntu or Debian based Virtualbox VMs.
 ## Usage
 
 ```bash
-curl -sSL https://setup-dev-vm.florian-sattler.de | bash
+curl -sSL https://setup.florian-sattler.de | python3 -c
 ```
 
 or
 
 ```bash
-wget -qO- https://setup-dev-vm.florian-sattler.de | bash
+wget -qO- https://setup.florian-sattler.de | python3 -c
 ```
