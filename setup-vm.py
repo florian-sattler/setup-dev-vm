@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 import os
 import pathlib
@@ -30,9 +31,7 @@ class CliFrontend:
         self.delay = 0.05
 
     def spinner(self):
-        for c in itertools.cycle(
-            ("⣿⣷", "⣿⣯", "⣿⣟", "⣿⡿", "⣿⢿", "⡿⣿", "⢿⣿", "⣻⣿", "⣽⣿", "⣾⣿", "⣷⣿", "⣿⣾")
-        ):
+        for c in itertools.cycle(("⣿⣷", "⣿⣯", "⣿⣟", "⣿⡿", "⣿⢿", "⡿⣿", "⢿⣿", "⣻⣿", "⣽⣿", "⣾⣿", "⣷⣿", "⣿⣾")):
             sys.stdout.write(c + " ")
             sys.stdout.flush()
             time.sleep(self.delay)
@@ -57,11 +56,7 @@ class CliFrontend:
 
         self.busy = False
         time.sleep(self.delay * 1.5)
-        status = (
-            "✓ \n"
-            if exc_type is None
-            else "─ \n" if exc_type == StepSkipped else "✗ \n"
-        )
+        status = "✓ \n" if exc_type is None else "─ \n" if exc_type == StepSkipped else "✗ \n"
         sys.stdout.write(status)
         sys.stdout.flush()
 
@@ -86,6 +81,20 @@ def get_sudo() -> int:
         return 0
 
 
+@contextlib.contextmanager
+def log_subprocess_error():
+    try:
+        yield
+
+    except subprocess.CalledProcessError as e:
+        sys.stderr.buffer.write(e.stderr)
+        raise
+
+    except Exception as e:
+        sys.stderr.write(str(e))
+        raise
+
+
 def run_commands(
     titel: str,
     *commands: list[str],
@@ -100,18 +109,10 @@ def run_commands(
             if skip_condition():
                 raise StepSkipped()
 
-        try:
+        with log_subprocess_error():
             for command in commands:
                 result = subprocess.run(command, capture_output=True)
                 result.check_returncode()
-
-        except subprocess.CalledProcessError as e:
-            sys.stderr.buffer.write(e.stderr)
-            raise
-
-        except Exception as e:
-            sys.stderr.write(str(e))
-            raise
 
 
 def run_script(
@@ -129,21 +130,13 @@ def run_script(
             if skip_condition():
                 raise StepSkipped()
 
-        try:
+        with log_subprocess_error():
             subprocess.run(
                 script,
                 shell=True,
                 check=True,
                 capture_output=True,
             )
-
-        except subprocess.CalledProcessError as e:
-            sys.stderr.buffer.write(e.stderr)
-            raise
-
-        except Exception as e:
-            sys.stderr.write(str(e))
-            raise
 
 
 def are_packages_installed_check(name, *names: str):
@@ -169,6 +162,69 @@ def is_kernel_module_loaded(name):
         return completed_process.returncode == 0
 
     return skip_condition
+
+
+#
+# Data
+#
+
+better_branch_script = """
+#!/bin/bash
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NO_COLOR='\033[0m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+NO_COLOR='\033[0m'
+
+width1=5
+width2=6
+width3=30
+width4=20
+width5=40
+
+# Function to count commits
+count_commits() {
+    local branch="$1"
+    local base_branch="$2"
+    local ahead_behind
+
+    ahead_behind=$(git rev-list --left-right --count "$base_branch"..."$branch")
+    echo "$ahead_behind"
+}
+
+# Main script
+main_branch=$(git rev-parse HEAD)
+
+printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" "Ahead" "Behind" "Branch" "Last Commit"  " "
+
+# Separator line for clarity
+printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" "-----" "------" "------------------------------" "-------------------" " "
+
+
+format_string="%(objectname:short)@%(refname:short)@%(committerdate:relative)"
+IFS=$'\n'
+
+for branchdata in $(git for-each-ref --sort=-authordate --format="$format_string" refs/heads/ --no-merged); do
+    sha=$(echo "$branchdata" | cut -d '@' -f1)
+    branch=$(echo "$branchdata" | cut -d '@' -f2)
+    time=$(echo "$branchdata" | cut -d '@' -f3)
+    if [ "$branch" != "$main_branch" ]; then
+            # Get branch description
+            description=$(git config branch."$branch".description)
+
+            # Count commits ahead and behind
+            ahead_behind=$(count_commits "$sha" "$main_branch")
+            ahead=$(echo "$ahead_behind" | cut -f2)
+            behind=$(echo "$ahead_behind" | cut -f1)
+
+            # Display branch info
+        printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" $ahead $behind $branch "$time" "$description"
+    fi
+done
+"""
 
 
 #
@@ -269,10 +325,7 @@ def update_alias():
         if "alias up=" in config_text:
             raise StepSkipped()
 
-        config.write_text(
-            config_text
-            + "\nalias up='sudo apt update && sudo apt full-upgrade --auto-remove -y'\n"
-        )
+        config.write_text(config_text + "\nalias up='sudo apt update && sudo apt full-upgrade --auto-remove -y'\n")
 
 
 def helper_tools():
@@ -352,6 +405,30 @@ def watchdog():
     )
 
 
+def git_bb():
+    with frontend("git better branch"):
+        local_bin = pathlib.Path.home() / ".local" / "bin"
+
+        if not local_bin.exists():
+            local_bin.mkdir(parents=True, exist_ok=True)
+
+        script_dst = local_bin / "better-git-branch.sh"
+
+        if script_dst.exists():
+            raise StepSkipped()
+
+        script_dst.write_text(better_branch_script)
+        script_dst.chmod(775)
+
+        with log_subprocess_error():
+            subprocess.run(
+                ["git", "config", "--global", "alias.bb", f"!{script_dst}"],
+                capture_output=True,
+                shell=True,
+                check=True,
+            )
+
+
 def git():
     run_commands(
         "setup git",
@@ -362,11 +439,7 @@ def git():
 
 def deadsnakes_python():
     def skip_condition() -> bool:
-        return any(
-            pathlib.Path("/etc/apt/sources.list.d/").glob(
-                "deadsnakes-ubuntu-ppa-*.list"
-            )
-        )
+        return any(pathlib.Path("/etc/apt/sources.list.d/").glob("deadsnakes-ubuntu-ppa-*.list"))
 
     run_commands(
         "deadsnakes python ppa",
@@ -394,6 +467,7 @@ def main() -> int:
         devops_ssh()
         watchdog()
         git()
+        git_bb()
         deadsnakes_python()
     except Exception as e:
         if str(e):
