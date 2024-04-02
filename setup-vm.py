@@ -181,7 +181,7 @@ NO_COLOR='\033[0m'
 
 width1=5
 width2=6
-width3=30
+width3=45
 width4=20
 width5=40
 
@@ -418,13 +418,12 @@ def git_bb():
             raise StepSkipped()
 
         script_dst.write_text(better_branch_script)
-        script_dst.chmod(775)
+        script_dst.chmod(0o775)
 
         with log_subprocess_error():
             subprocess.run(
                 ["git", "config", "--global", "alias.bb", f"!{script_dst}"],
                 capture_output=True,
-                shell=True,
                 check=True,
             )
 
