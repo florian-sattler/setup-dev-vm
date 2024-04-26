@@ -224,7 +224,7 @@ for branchdata in $(git for-each-ref --sort=-authordate --format="$format_string
         printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" $ahead $behind $branch "$time" "$description"
     fi
 done
-"""
+"""  # noqa: E501
 
 
 #
@@ -278,7 +278,7 @@ def setup_regolith_yammy() -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n apt update -qq
         sudo -n apt install -y -qq regolith-system-ubuntu
-        """,
+        """,  # noqa: E501
         skip_condition=skip_condition,
     )
 
@@ -309,10 +309,22 @@ def zsh_ohmyzsh():
     run_script(
         "zsh & ohmyzsh",
         """
-        sudo -n apt-get install -y -qq zsh git
+        sudo -n apt-get install -y -qq zsh git fzf
         sudo -n chsh -s "$(which zsh)" "$USER"
         sh -c "$(wget -qO- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-        """,
+
+        git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+        git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+        zsh -c 'omz plugin enable fzf'
+        zsh -c 'omz plugin enable zsh-autosuggestions'
+        zsh -c 'omz plugin enable zsh-syntax-highlighting'
+
+        mkdir -p "$HOME/.zsh"
+        git clone https://github.com/sindresorhus/pure.git "$HOME/.zsh/pure"
+        echo 'fpath+=($HOME/.zsh/pure)' >> $HOME/.zshrc
+        echo 'autoload -U promptinit; promptinit' >> $HOME/.zshrc
+        echo 'prompt pure' >> $HOME/.zshrc
+        """,  # noqa: E501
         skip_condition=(pathlib.Path.home() / ".oh-my-zsh").is_dir,
     )
 
@@ -365,7 +377,7 @@ def vscode() -> None:
         sudo -n apt install -qq -y apt-transport-https
         sudo -n apt update -qq
         sudo -n apt install -qq -y code
-        """,
+        """,  # noqa: E501
         skip_condition=pathlib.Path("/etc/apt/sources.list.d/vscode.list").exists,
     )
 
