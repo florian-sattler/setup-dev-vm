@@ -445,6 +445,7 @@ def git():
         "setup git",
         ["git", "config", "--global", "init.defaultBranch", "main"],
         ["git", "config", "--global", "user.name", "Florian Sattler"],
+        ["git", "config", "--global", "alias.publish", "push -u origin HEAD"],
     )
 
 
