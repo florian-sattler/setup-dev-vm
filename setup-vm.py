@@ -278,6 +278,7 @@ def setup_regolith_yammy() -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n apt update -qq
         sudo -n apt install -y -qq regolith-system-ubuntu
+        echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
     )
