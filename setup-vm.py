@@ -1,4 +1,7 @@
+from _curses import window
 import contextlib
+import curses
+import enum
 import itertools
 import os
 import pathlib
@@ -10,10 +13,11 @@ import threading
 import time
 import typing
 
-
 #
 # CLI Frontend
 #
+
+ERROR_TEXT: str | None = None
 
 
 class StepFailure(Exception):
@@ -24,119 +28,319 @@ class StepSkipped(Exception):
     pass
 
 
-class CliFrontend:
-    def __init__(self) -> None:
-        self.errors_occured = False
-        self.busy = False
+class SimpleCLIFrontend:
+    @contextlib.contextmanager
+    def run_step(self, name: str) -> typing.Generator[None, None, None]:
+        try:
+            print(name, end=" ", flush=True)
+            yield
+
+        except StepSkipped:
+            print("─")
+
+        except Exception as e:
+            print("✗")
+            global ERROR_TEXT
+            ERROR_TEXT = stringify_exception(e)
+            raise SystemExit(1)
+
+        else:
+            print("✓")
+
+    def stop(self) -> None:
+        pass
+
+    def select_steps(self, steps: typing.Sequence[typing.Callable]) -> typing.Sequence[typing.Callable]:
+        return steps
+
+
+#
+# Curses frontend
+#
+
+
+def draw_line(stdscr: window, line, step_is_selected: bool, step_is_active: bool, step_name: str):
+    stdscr.move(line, 0)
+
+    if step_is_selected:
+        stdscr.addstr("▶", curses.color_pair(3))
+    else:
+        stdscr.addstr(" ")
+
+    if step_is_active:
+        stdscr.addstr(" ✔ " if step_is_active else " ✗ ", curses.color_pair(1))
+    else:
+        stdscr.addstr(" ✗ ", curses.color_pair(2))
+
+    stdscr.addstr(step_name)
+
+
+def redraw_screen(
+    stdscr: window,
+    steps: typing.Sequence[typing.Callable],
+    step_enabled_flags: list[bool],
+    current_step: int,
+    offset: int,
+):
+    max_y, _ = stdscr.getmaxyx()
+    stdscr.clear()
+    if max_y > 0:
+        stdscr.addstr(0, 0, "Select:")
+
+    offset_end = offset + max_y - 3
+    steps_and_enabled = zip(steps[offset:offset_end], step_enabled_flags[offset:offset_end])
+
+    for i, (step_function, step_enabled) in enumerate(steps_and_enabled):
+        if max_y > i + 2:
+            draw_line(
+                stdscr,
+                i + 2,
+                i == current_step - offset,
+                step_enabled,
+                step_function.__doc__ or step_function.__name__,
+            )
+
+    stdscr.refresh()
+
+
+def select_steps(stdscr: window, steps: typing.Sequence[typing.Callable]) -> typing.Sequence[typing.Callable]:
+    curses.curs_set(0)  # Make the cursor invisible
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_GREEN, -1)  # Green for enabled steps
+    curses.init_pair(2, curses.COLOR_RED, -1)  # Red for disabled steps
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)  # Yellow for selected step
+
+    current_step = 0
+    offset = 0
+    enabled = [True for _ in steps]
+
+    while True:
+        redraw_screen(stdscr, steps, enabled, current_step, offset)
+
+        c = stdscr.getch()
+        max_y, _ = stdscr.getmaxyx()
+        if c == ord(" "):
+            enabled[current_step] = not enabled[current_step]
+
+        elif c == curses.KEY_DOWN:
+            current_step = min(current_step + 1, len(steps) - 1)
+
+        elif c == curses.KEY_UP:
+            current_step = max(current_step - 1, 0)
+
+        elif c == ord("\n"):
+            break
+
+        elif c == ord("q"):
+            exit(0)
+
+        if current_step - offset >= max_y - 3:
+            offset += 1
+        if current_step < offset:
+            offset -= 1
+
+        if max_y - 3 > len(steps) - offset:
+            offset = max(0, len(steps) - max_y - 3)
+
+    return [step for step, e in zip(steps, enabled) if e]
+
+
+class StepState(enum.Enum):
+    SUCCESS = 1
+    FAILURE = 2
+    SKIPPED = 3
+    RUNNING = 4
+
+
+def draw_steps_progress(stdscr: window, lines: list[tuple[str, StepState]], spinner_char: str) -> None:
+    stdscr.clear()
+    max_y, _ = stdscr.getmaxyx()
+
+    visible_lines = lines[-max_y:]
+
+    for i, (name, state) in enumerate(visible_lines):
+        if state == StepState.SUCCESS:
+            stdscr.addstr(i, 0, f"✓ {name}")
+        elif state == StepState.FAILURE:
+            stdscr.addstr(i, 0, f"✗ {name}")
+        elif state == StepState.SKIPPED:
+            stdscr.addstr(i, 0, f"─ {name}")
+        elif state == StepState.RUNNING:
+            stdscr.addstr(i, 0, f"{spinner_char} {name}")
+
+    stdscr.refresh()
+
+
+def stringify_lines(lines: list[tuple[str, StepState]]) -> str:
+    icon = {
+        StepState.SUCCESS: "✓",
+        StepState.FAILURE: "✗",
+        StepState.SKIPPED: "─",
+        StepState.RUNNING: "▶",
+    }
+    return "\n".join([f"{icon[state]} {name}" for name, state in lines])
+
+
+def stringify_exception(e: Exception) -> str:
+    return e.stderr.decode("utf-8") if isinstance(e, subprocess.CalledProcessError) else str(e)
+
+
+class CursesFrontend:
+    def __init__(self, stdscr: window) -> None:
         self.delay = 0.05
+        self.running = False
+        self.lines: list[tuple[str, StepState]] = []
+        self.spinner_chars = itertools.cycle(
+            # "▁▂▃▄▅▆▇█▇▆▅▄▃▂"
+            # "|/-\\"
+            "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+            # "⣾⣽⣻⢿⡿⣟⣯⣷"
+            # ".oO@*"
+            # "^>v<"
+            # "-–—–"
+            # "[{(<|>)}]"
+        )
+        self.stdscr = stdscr
 
-    def spinner(self):
-        for c in itertools.cycle(("⣿⣷", "⣿⣯", "⣿⣟", "⣿⡿", "⣿⢿", "⡿⣿", "⢿⣿", "⣻⣿", "⣽⣿", "⣾⣿", "⣷⣿", "⣿⣾")):
-            sys.stdout.write(c + " ")
-            sys.stdout.flush()
+    @contextlib.contextmanager
+    def run_step(self, name: str) -> typing.Generator[None, None, None]:
+        # start draw loop if not already running
+        if not self.running:
+            self.running = True
+            threading.Thread(target=self._draw_loop, daemon=True).start()
+
+        self.lines.append((name, StepState.RUNNING))
+
+        try:
+            yield
+        except StepSkipped:
+            self.lines[-1] = (name, StepState.SKIPPED)
+        except Exception as e:
+            self.lines[-1] = (name, StepState.FAILURE)
+
+            global ERROR_TEXT
+            ERROR_TEXT = stringify_lines(self.lines) + "\n" + stringify_exception(e)
+
+            raise SystemExit(1)
+        else:
+            self.lines[-1] = (name, StepState.SUCCESS)
+
+    def stop(self) -> None:
+        self.running = False
+
+    def _draw_loop(self):
+        while self.running:
+            draw_steps_progress(self.stdscr, self.lines, next(self.spinner_chars))
             time.sleep(self.delay)
-            sys.stdout.write("\b\b\b")
-            sys.stdout.flush()
 
-            if not self.busy:
-                break
-
-    def __call__(self, name: str):
-        sys.stdout.write(name)
-        return self
-
-    def __enter__(self):
-        self.busy = True
-        sys.stdout.write(" ")
-        threading.Thread(target=self.spinner).start()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        del exc_val
-        del exc_tb
-
-        self.busy = False
-        time.sleep(self.delay * 1.5)
-        status = "✓ \n" if exc_type is None else "─ \n" if exc_type == StepSkipped else "✗ \n"
-        sys.stdout.write(status)
-        sys.stdout.flush()
-
-        if exc_type == StepSkipped:
-            return True
+    def select_steps(self, steps: typing.Sequence[typing.Callable]) -> typing.Sequence[typing.Callable]:
+        return select_steps(self.stdscr, steps)
 
 
-frontend = CliFrontend()
+class UIFrontend(typing.Protocol):
+    def run_step(self, name: str) -> typing.ContextManager[None]: ...
+
+    def stop(self) -> None: ...
+
+    def select_steps(
+        self, steps: typing.Sequence[typing.Callable[[typing.Self], None]]
+    ) -> typing.Sequence[typing.Callable[[typing.Self], None]]: ...
+
+
+@contextlib.contextmanager
+def get_frontend() -> typing.Generator[UIFrontend, None, None]:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Setup VM")
+    parser.add_argument("--unattended", action="store_true", help="Run without user interaction")
+
+    if parser.parse_args().unattended or not sys.stdout.isatty():
+        yield SimpleCLIFrontend()
+        return
+
+    try:
+        stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        stdscr.keypad(True)
+        try:
+            curses.start_color()
+        except Exception:
+            pass
+
+        frontend = CursesFrontend(stdscr)
+        yield frontend
+
+    finally:
+        # Set everything back to normal
+        if "stdscr" in locals():
+            stdscr.keypad(False)
+            curses.echo()
+            curses.nocbreak()
+            curses.endwin()
+
+        if "frontend" in locals():
+            print(stringify_lines(frontend.lines))
+
+
+#
+# sudo loop
+#
+
+
+def sudo_loop() -> None:
+    while True:
+        try:
+            subprocess.run(["sudo", "true"], check=True)
+            time.sleep(10)
+        except subprocess.CalledProcessError:
+            pass
+
 
 #
 # Step Helper
 #
 
 
-def get_sudo() -> int:
-    try:
-        subprocess.run(["sudo", "true"], check=True)
-    except subprocess.CalledProcessError as e:
-        return e.returncode
-
-    else:
-        return 0
-
-
-@contextlib.contextmanager
-def log_subprocess_error():
-    try:
-        yield
-
-    except subprocess.CalledProcessError as e:
-        sys.stderr.buffer.write(e.stderr)
-        raise
-
-    except Exception as e:
-        sys.stderr.write(str(e))
-        raise
+def get_sudo() -> None:
+    subprocess.run(["sudo", "true"], check=True)
+    threading.Thread(target=sudo_loop, daemon=True).start()
 
 
 def run_commands(
+    frontend: UIFrontend,
     titel: str,
     *commands: list[str],
     skip_condition: typing.Callable[[], bool] | None = None,
-    need_sudo: bool = True,
 ) -> None:
-    if need_sudo:
-        get_sudo()
-
-    with frontend(titel):
+    with frontend.run_step(titel):
         if skip_condition is not None:
             if skip_condition():
                 raise StepSkipped()
 
-        with log_subprocess_error():
-            for command in commands:
-                result = subprocess.run(command, capture_output=True)
-                result.check_returncode()
+        for command in commands:
+            subprocess.run(command, capture_output=True, check=True)
 
 
 def run_script(
+    frontend: UIFrontend,
     title: str,
     script: str,
     *,
     skip_condition: typing.Callable[[], bool] | None = None,
-    need_sudo: bool = True,
 ) -> None:
-    if need_sudo:
-        get_sudo()
-
-    with frontend(title):
+    with frontend.run_step(title):
         if skip_condition is not None:
             if skip_condition():
                 raise StepSkipped()
 
-        with log_subprocess_error():
-            subprocess.run(
-                script,
-                shell=True,
-                check=True,
-                capture_output=True,
-            )
+        subprocess.run(
+            script,
+            shell=True,
+            check=True,
+            capture_output=True,
+        )
 
 
 def are_packages_installed_check(name, *names: str):
@@ -232,37 +436,38 @@ done
 #
 
 
-def check_prerequisites() -> None:
-    with frontend("64-bit Linux"):
+def check_prerequisites(frontend: UIFrontend) -> None:
+    with frontend.run_step("64-bit Linux"):
         if platform.system() != "Linux" or platform.machine() != "x86_64":
             raise StepFailure()
 
-    with frontend("don't run as root"):
+    with frontend.run_step("don't run as root"):
         if os.getuid() == 0:
             raise StepFailure()
 
-    with frontend("locate apt"):
+    with frontend.run_step("locate apt"):
         if shutil.which("apt") is None:
             raise StepFailure()
 
-    with frontend("locate wget"):
+    with frontend.run_step("locate wget"):
         if shutil.which("wget") is None:
             raise StepFailure()
 
-    with frontend("locate gpg"):
+    with frontend.run_step("locate gpg"):
         if shutil.which("gpg") is None:
             raise StepFailure()
 
 
-def update_system():
+def update_system(frontend: UIFrontend):
     run_commands(
+        frontend,
         "Update System",
         ["sudo", "-n", "apt", "update", "-qq"],
         ["sudo", "-n", "apt", "full-upgrade", "--auto-remove", "-y", "--purge", "-qq"],
     )
 
 
-def setup_regolith_yammy() -> None:
+def setup_regolith_yammy(frontend: UIFrontend) -> None:
     def skip_condition() -> bool:
         releases_path = pathlib.Path("/etc/os-release")
         return (
@@ -272,6 +477,7 @@ def setup_regolith_yammy() -> None:
         )
 
     run_script(
+        frontend,
         "Setup Regolith",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
@@ -284,19 +490,21 @@ def setup_regolith_yammy() -> None:
     )
 
 
-def setup_virtual_box_guest_additions():
+def setup_virtual_box_guest_additions(frontend):
     def get_username():
         import pwd  # after unix check is done
 
         return pwd.getpwuid(os.getuid())[0]
 
     run_commands(
+        frontend,
         "Virtualbox Dependencies",
         ["sudo", "-n", "apt", "install", "-y", "-qq", "dkms", "gcc", "perl"],
         skip_condition=are_packages_installed_check("dkms", "gcc", "perl"),
     )
 
     run_script(
+        frontend,
         "Virtualbox Guest Addtions",
         f"""
         cd /media/{get_username()}/VBox_GAs_*/
@@ -306,8 +514,9 @@ def setup_virtual_box_guest_additions():
     )
 
 
-def zsh_ohmyzsh():
+def zsh_ohmyzsh(frontend: UIFrontend):
     run_script(
+        frontend,
         "zsh & ohmyzsh",
         """
         sudo -n apt-get install -y -qq zsh git fzf
@@ -330,18 +539,24 @@ def zsh_ohmyzsh():
     )
 
 
-def update_alias():
-    with frontend("alias up"):
+def update_alias(frontend: UIFrontend):
+    with frontend.run_step("alias up"):
         config = pathlib.Path.home() / ".zshrc"
         config_text = config.read_text()
 
         if "alias up=" in config_text:
             raise StepSkipped()
 
-        config.write_text(config_text + "\nalias up='sudo apt update && sudo apt full-upgrade --auto-remove -y'\n")
+        config.write_text(
+            config_text
+            + (
+                "\nalias up='sudo NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive "
+                "apt update && sudo apt full-upgrade --auto-remove -y'\n"
+            )
+        )
 
 
-def helper_tools():
+def helper_tools(frontend: UIFrontend):
     tools = [
         "curl",
         "htop",
@@ -360,14 +575,16 @@ def helper_tools():
     ]
 
     run_commands(
+        frontend,
         "Helper Tools",
         ["sudo", "-n", "apt", "install", "-y", "-qq", *tools],
         skip_condition=are_packages_installed_check(*tools),
     )
 
 
-def vscode() -> None:
+def vscode(frontend: UIFrontend) -> None:
     run_script(
+        frontend,
         "vs code",
         """
         wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor >packages.microsoft.gpg
@@ -383,13 +600,14 @@ def vscode() -> None:
     )
 
 
-def devops_ssh():
+def devops_ssh(frontend: UIFrontend):
     def skip_condition() -> bool:
         config = pathlib.Path.home() / ".ssh/config"
 
         return config.exists() or "Host ssh.dev.azure.com" in config.read_text()
 
     run_script(
+        frontend,
         "Azure Devops",
         """
         if [ ! -d "$HOME/.ssh" ]; then
@@ -408,8 +626,9 @@ def devops_ssh():
     )
 
 
-def watchdog():
+def watchdog(frontend: UIFrontend):
     run_commands(
+        frontend,
         "install watchdog",
         ["sudo", "-n", "apt", "install", "-qq", "-y", "watchdog"],
         ["sudo", "-n", "systemctl", "enable", "watchdog.service"],
@@ -418,8 +637,8 @@ def watchdog():
     )
 
 
-def git_bb():
-    with frontend("git better branch"):
+def git_bb(frontend: UIFrontend):
+    with frontend.run_step("git better branch"):
         local_bin = pathlib.Path.home() / ".local" / "bin"
 
         if not local_bin.exists():
@@ -433,16 +652,16 @@ def git_bb():
         script_dst.write_text(better_branch_script)
         script_dst.chmod(0o775)
 
-        with log_subprocess_error():
-            subprocess.run(
-                ["git", "config", "--global", "alias.bb", f"!{script_dst}"],
-                capture_output=True,
-                check=True,
-            )
+        subprocess.run(
+            ["git", "config", "--global", "alias.bb", f"!{script_dst}"],
+            capture_output=True,
+            check=True,
+        )
 
 
-def git():
+def git(frontend: UIFrontend):
     run_commands(
+        frontend,
         "setup git",
         ["git", "config", "--global", "init.defaultBranch", "main"],
         ["git", "config", "--global", "user.name", "Florian Sattler"],
@@ -450,12 +669,14 @@ def git():
     )
 
 
-def deadsnakes_python():
+def deadsnakes_python(frontend: UIFrontend):
     def skip_condition() -> bool:
         return any(pathlib.Path("/etc/apt/sources.list.d/").glob("deadsnakes-ubuntu-ppa-*.list"))
 
     run_commands(
+        frontend,
         "deadsnakes python ppa",
+        ["sudo", "-n", "apt-get", "install", "--yes", "software-properties-common"],
         ["sudo", "-n", "add-apt-repository", "--yes", "ppa:deadsnakes/ppa"],
         skip_condition=skip_condition,
     )
@@ -467,25 +688,43 @@ def deadsnakes_python():
 
 
 def main() -> int:
+    all_steps: typing.Sequence[typing.Callable[[UIFrontend], None]] = [
+        check_prerequisites,
+        update_system,
+        setup_regolith_yammy,
+        setup_virtual_box_guest_additions,
+        zsh_ohmyzsh,
+        update_alias,
+        helper_tools,
+        vscode,
+        devops_ssh,
+        watchdog,
+        git,
+        git_bb,
+        deadsnakes_python,
+    ]
+
+    global ERROR_TEXT
+
+    # get and keep sudo
+    get_sudo()
+
     try:
-        check_prerequisites()
-        get_sudo()
-        update_system()
-        setup_regolith_yammy()
-        setup_virtual_box_guest_additions()
-        zsh_ohmyzsh()
-        update_alias()
-        helper_tools()
-        vscode()
-        devops_ssh()
-        watchdog()
-        git()
-        git_bb()
-        deadsnakes_python()
+        with get_frontend() as frontend:
+            all_steps = frontend.select_steps(all_steps)
+            for step in all_steps:
+                step(frontend)
+    except KeyboardInterrupt:
+        pass
     except Exception as e:
-        if str(e):
-            print(e)
+        if ERROR_TEXT is None:
+            ERROR_TEXT = ""
+
+        ERROR_TEXT += stringify_exception(e)
         return 1
+    finally:
+        if ERROR_TEXT:
+            print(ERROR_TEXT)
 
     return 0
 
