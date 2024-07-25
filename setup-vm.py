@@ -244,8 +244,8 @@ class UIFrontend(typing.Protocol):
     def stop(self) -> None: ...
 
     def select_steps(
-        self, steps: typing.Sequence[typing.Callable[[typing.Self], None]]
-    ) -> typing.Sequence[typing.Callable[[typing.Self], None]]: ...
+        self, steps: typing.Sequence[typing.Callable[["typing.Self"], None]]
+    ) -> typing.Sequence[typing.Callable[["typing.Self"], None]]: ...
 
 
 @contextlib.contextmanager
@@ -738,7 +738,7 @@ git_worktree_clone() {
     cd "$REPO_NAME/.git" || return
 
     # Determine the default branch name
-    DEFAULT_BRANCH_NAME=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+    DEFAULT_BRANCH_NAME=$(git ls-remote --symref origin HEAD | grep -oP 'refs/heads/(\\K[^\\s]+)')
 
     # Add a worktree for the default branch
     git worktree add ../"$DEFAULT_BRANCH_NAME" "$DEFAULT_BRANCH_NAME"
