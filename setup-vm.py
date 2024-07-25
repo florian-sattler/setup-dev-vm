@@ -97,7 +97,7 @@ def redraw_screen(
                 i + 2,
                 i == current_step - offset,
                 step_enabled,
-                step_function.__doc__ or step_function.__name__,
+                step_function.__doc__ or " ".join(step_function.__name__.split("_")),
             )
 
     stdscr.refresh()
@@ -467,7 +467,7 @@ def update_system(frontend: UIFrontend):
     )
 
 
-def setup_regolith_yammy(frontend: UIFrontend) -> None:
+def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
     def skip_condition() -> bool:
         releases_path = pathlib.Path("/etc/os-release")
         return (
@@ -484,6 +484,29 @@ def setup_regolith_yammy(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n apt update -qq
         sudo -n apt install -y -qq regolith-system-ubuntu
+        echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
+        """,  # noqa: E501
+        skip_condition=skip_condition,
+    )
+
+
+def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
+    def skip_condition() -> bool:
+        releases_path = pathlib.Path("/etc/os-release")
+        return (
+            not releases_path.exists()
+            or 'VERSION_ID="12"' not in releases_path.read_text()
+            or pathlib.Path("/etc/apt/sources.list.d/regolith.list").exists()
+        )
+
+    run_script(
+        frontend,
+        "Setup Regolith",
+        """
+        wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
+        echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
+        sudo -n apt update -qq
+        sudo -n apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -682,6 +705,60 @@ def deadsnakes_python(frontend: UIFrontend):
     )
 
 
+def install_docker_and_compose(frontend: UIFrontend):
+    run_script(
+        frontend,
+        "install docker and docker-compose",
+        "curl -fsSL https://get.docker.com | sudo -n sh",
+        skip_condition=are_packages_installed_check("docker-ce", "docker-ce-cli", "containerd.io"),
+    )
+
+
+def setup_git_worktree_clone(frontend: UIFrontend):
+    shell_function = """
+git_worktree_clone() {
+    # Check if exactly one argument is provided
+    if [ "$#" -ne 1 ]; then
+        echo "Usage: git_worktree_clone <REPOSITORY_URL>"
+        return 1
+    fi
+
+    # Extract the repository name from the URL
+    REPO_URL="$1"
+    REPO_NAME=$(basename -s .git "$REPO_URL")
+
+    # Clone the repository
+    git clone "$REPO_URL" --bare "$REPO_NAME/.git"
+    if [ $? -ne 0 ]; then
+        echo "Git clone failed"
+        return 1
+    fi
+
+    # Change directory
+    cd "$REPO_NAME/.git" || return
+
+    # Determine the default branch name
+    DEFAULT_BRANCH_NAME=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+
+    # Add a worktree for the default branch
+    git worktree add ../"$DEFAULT_BRANCH_NAME" "$DEFAULT_BRANCH_NAME"
+    if [ $? -ne 0 ]; then
+        echo "Git worktree add failed"
+        return 1
+    fi
+}
+"""
+
+    with frontend.run_step("setup git worktree clone"):
+        config = pathlib.Path.home() / ".zshrc"
+        config_text = config.read_text()
+
+        if "git_worktree_clone" in config_text:
+            raise StepSkipped()
+
+        config.write_text(config_text + shell_function)
+
+
 #
 # Invocation
 #
@@ -691,16 +768,19 @@ def main() -> int:
     all_steps: typing.Sequence[typing.Callable[[UIFrontend], None]] = [
         check_prerequisites,
         update_system,
-        setup_regolith_yammy,
+        setup_regolith_ubuntu_yammy,
+        setup_regolith_debian_bookworm,
         setup_virtual_box_guest_additions,
         zsh_ohmyzsh,
         update_alias,
+        install_docker_and_compose,
         helper_tools,
         vscode,
         devops_ssh,
         watchdog,
         git,
         git_bb,
+        setup_git_worktree_clone,
         deadsnakes_python,
     ]
 
