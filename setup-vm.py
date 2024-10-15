@@ -55,7 +55,7 @@ class SimpleCLIFrontend:
         pass
 
     def _ask_step(self, step: typing.Callable) -> bool:
-        step_name = (step.__doc__ or " ".join(step.__name__.split("_")),)
+        step_name = step.__doc__ or " ".join(step.__name__.split("_"))
         while True:
             try:
                 answer = input(f"Run {step_name}? [y/n] ")
