@@ -733,11 +733,10 @@ def devops_ssh(frontend: UIFrontend):
 
     def append_ssh_config() -> None:
         config = pathlib.Path.home() / ".ssh" / "config"
-        config_text = config.read_text() if config.exists() else ""
         config.write_text(
             "\n".join(
                 [
-                    config_text,
+                    config.read_text(),
                     "Host ssh.dev.azure.com",
                     "    User git",
                     "    PubkeyAcceptedAlgorithms +ssh-rsa",
@@ -752,6 +751,7 @@ def devops_ssh(frontend: UIFrontend):
         ["sudo", "-n", "apt", "install", "-y", "-qq", "ssh"],
         ["mkdir", "-p", "$HOME/.ssh"],
         ["chmod", "700", "$HOME/.ssh"],
+        ["touch", "$HOME/.ssh/config"],
         append_ssh_config,
         skip_condition=skip_condition,
     )
