@@ -724,7 +724,7 @@ def vscode(frontend: UIFrontend) -> None:
 
 def devops_ssh(frontend: UIFrontend):
     def skip_condition() -> bool:
-        config = pathlib.Path.home() / ".ssh/config"
+        config = pathlib.Path.home() / ".ssh" / "config"
 
         if not config.exists():
             return False
