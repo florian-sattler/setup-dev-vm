@@ -726,7 +726,10 @@ def devops_ssh(frontend: UIFrontend):
     def skip_condition() -> bool:
         config = pathlib.Path.home() / ".ssh/config"
 
-        return config.exists() or "Host ssh.dev.azure.com" in config.read_text()
+        if not config.exists():
+            return False
+
+        return "Host ssh.dev.azure.com" in config.read_text()
 
     def append_ssh_config() -> None:
         config = pathlib.Path.home() / ".ssh/config"
@@ -750,24 +753,6 @@ def devops_ssh(frontend: UIFrontend):
         ["mkdir", "-p", "$HOME/.ssh"],
         ["chmod", "700", "$HOME/.ssh"],
         append_ssh_config,
-        skip_condition=skip_condition,
-    )
-
-    frontend.run_script(
-        "Azure Devops",
-        """
-        if [ ! -d "$HOME/.ssh" ]; then
-            mkdir $HOME/.ssh
-            chmod 700 $HOME/.ssh
-        fi
-
-        cat <<'EOF' >>~/.ssh/config
-        Host ssh.dev.azure.com
-            User git
-            PubkeyAcceptedAlgorithms +ssh-rsa
-            HostkeyAlgorithms +ssh-rsa
-        EOF
-        """,
         skip_condition=skip_condition,
     )
 
