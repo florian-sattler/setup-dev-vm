@@ -732,7 +732,7 @@ def devops_ssh(frontend: UIFrontend):
         return "Host ssh.dev.azure.com" in config.read_text()
 
     def append_ssh_config() -> None:
-        config = pathlib.Path.home() / ".ssh/config"
+        config = pathlib.Path.home() / ".ssh" / "config"
         config_text = config.read_text()
         config.write_text(
             "\n".join(
