@@ -75,7 +75,7 @@ class SimpleCLIFrontend:
     def run_commands(
         self,
         titel: str,
-        *commands: list[str],
+        *commands: list[str] | typing.Callable[[], None],
         skip_condition: typing.Callable[[], bool] | None = None,
     ) -> None:
         _run_commands(self, titel, *commands, skip_condition=skip_condition, capture_output=not self.show_output)
@@ -276,7 +276,7 @@ class CursesFrontend:
     def run_commands(
         self,
         titel: str,
-        *commands: list[str],
+        *commands: list[str] | typing.Callable[[], None],
         skip_condition: typing.Callable[[], bool] | None = None,
     ) -> None:
         _run_commands(self, titel, *commands, skip_condition=skip_condition, capture_output=True)
@@ -303,7 +303,7 @@ class UIFrontend(typing.Protocol):
     def run_commands(
         self,
         titel: str,
-        *commands: list[str],
+        *commands: list[str] | typing.Callable[[], None],
         skip_condition: typing.Callable[[], bool] | None = None,
     ) -> None: ...
 
@@ -386,7 +386,7 @@ def get_sudo() -> None:
 def _run_commands(
     frontend: UIFrontend,
     titel: str,
-    *commands: list[str],
+    *commands: list[str] | typing.Callable[[], None],
     skip_condition: typing.Callable[[], bool] | None = None,
     capture_output: bool = True,
 ) -> None:
@@ -396,7 +396,10 @@ def _run_commands(
                 raise StepSkipped()
 
         for command in commands:
-            subprocess.run(command, capture_output=capture_output, check=True)
+            if isinstance(command, list):
+                subprocess.run(command, capture_output=capture_output, check=True)
+            else:
+                command()
 
 
 def _run_script(
@@ -724,6 +727,31 @@ def devops_ssh(frontend: UIFrontend):
         config = pathlib.Path.home() / ".ssh/config"
 
         return config.exists() or "Host ssh.dev.azure.com" in config.read_text()
+
+    def append_ssh_config() -> None:
+        config = pathlib.Path.home() / ".ssh/config"
+        config_text = config.read_text()
+        config.write_text(
+            "\n".join(
+                [
+                    config_text,
+                    "Host ssh.dev.azure.com",
+                    "    User git",
+                    "    PubkeyAcceptedAlgorithms +ssh-rsa",
+                    "    HostkeyAlgorithms +ssh-rsa",
+                    "",
+                ]
+            )
+        )
+
+    frontend.run_commands(
+        "Azure Devops",
+        ["sudo", "-n", "apt", "install", "-y", "-qq", "ssh"],
+        ["mkdir", "-p", "$HOME/.ssh"],
+        ["chmod", "700", "$HOME/.ssh"],
+        append_ssh_config,
+        skip_condition=skip_condition,
+    )
 
     frontend.run_script(
         "Azure Devops",
