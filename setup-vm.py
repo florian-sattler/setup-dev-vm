@@ -58,8 +58,8 @@ class SimpleCLIFrontend:
         step_name = step.__doc__ or " ".join(step.__name__.split("_"))
         while True:
             try:
-                answer = input(f"Run {step_name}? [y/n] ")
-                if answer.lower() in ("y", "yes"):
+                answer = input(f"Run {step_name}? [Y/n] ")
+                if answer.lower() in ("", "y", "yes"):
                     return True
                 elif answer.lower() in ("n", "no"):
                     return False
