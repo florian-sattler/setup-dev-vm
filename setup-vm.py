@@ -445,6 +445,11 @@ def is_kernel_module_loaded(name):
     return skip_condition
 
 
+def set_environment() -> None:
+    os.environ["NEEDRESTART_MODE"] = "a"
+    os.environ["DEBIAN_FRONTEND"] = "noninteractive"
+
+
 #
 # Data
 #
@@ -557,8 +562,8 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
-        sudo -n apt update -qq
-        sudo -n apt install -y -qq regolith-system-ubuntu
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -579,8 +584,8 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo tee /usr/share/keyrings/regolith-archive-keyring.gpg > /dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
-        sudo -n apt update -qq
-        sudo -n apt install -y -qq regolith-system-ubuntu
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -601,8 +606,8 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
-        sudo -n apt update -qq
-        sudo -n apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -635,7 +640,7 @@ def zsh_ohmyzsh(frontend: UIFrontend):
     frontend.run_script(
         "zsh & ohmyzsh",
         """
-        sudo -n apt-get install -y -qq zsh git fzf
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zsh git fzf
         sudo -n chsh -s "$(which zsh)" "$USER"
         sh -c "$(wget -qO- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 
@@ -706,9 +711,9 @@ def vscode(frontend: UIFrontend) -> None:
         sudo -n sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
         rm -f packages.microsoft.gpg
 
-        sudo -n apt install -qq -y apt-transport-https
-        sudo -n apt update -qq
-        sudo -n apt install -qq -y code
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -qq -y apt-transport-https
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -qq -y code
         """,  # noqa: E501
         skip_condition=pathlib.Path("/etc/apt/sources.list.d/vscode.list").exists,
     )
@@ -851,6 +856,8 @@ git_worktree_clone() {
 
 
 def main() -> int:
+    set_environment()
+
     all_steps: typing.Sequence[typing.Callable[[UIFrontend], None]] = [
         check_prerequisites,
         update_system,
