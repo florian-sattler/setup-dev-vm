@@ -29,6 +29,10 @@ class StepSkipped(Exception):
 
 
 class SimpleCLIFrontend:
+    def __init__(self, *, show_output: bool, interactive_step_selection: bool):
+        self.show_output = show_output
+        self.interactive_step_selection = interactive_step_selection
+
     @contextlib.contextmanager
     def run_step(self, name: str) -> typing.Generator[None, None, None]:
         try:
@@ -50,8 +54,40 @@ class SimpleCLIFrontend:
     def stop(self) -> None:
         pass
 
+    def _ask_step(self, step: typing.Callable) -> bool:
+        step_name = (step.__doc__ or " ".join(step.__name__.split("_")),)
+        while True:
+            try:
+                answer = input(f"Run {step_name}? [y/n] ")
+                if answer.lower() in ("y", "yes"):
+                    return True
+                elif answer.lower() in ("n", "no"):
+                    return False
+            except KeyboardInterrupt:
+                raise SystemExit(1)
+
     def select_steps(self, steps: typing.Sequence[typing.Callable]) -> typing.Sequence[typing.Callable]:
-        return steps
+        if not self.interactive_step_selection:
+            return steps
+
+        return [step for step in steps if self._ask_step(step)]
+
+    def run_commands(
+        self,
+        titel: str,
+        *commands: list[str],
+        skip_condition: typing.Callable[[], bool] | None = None,
+    ) -> None:
+        _run_commands(self, titel, *commands, skip_condition=skip_condition, capture_output=not self.show_output)
+
+    def run_script(
+        self,
+        title: str,
+        script: str,
+        *,
+        skip_condition: typing.Callable[[], bool] | None = None,
+    ) -> None:
+        _run_script(self, title, script, skip_condition=skip_condition, capture_output=not self.show_output)
 
 
 #
@@ -237,6 +273,23 @@ class CursesFrontend:
     def select_steps(self, steps: typing.Sequence[typing.Callable]) -> typing.Sequence[typing.Callable]:
         return select_steps(self.stdscr, steps)
 
+    def run_commands(
+        self,
+        titel: str,
+        *commands: list[str],
+        skip_condition: typing.Callable[[], bool] | None = None,
+    ) -> None:
+        _run_commands(self, titel, *commands, skip_condition=skip_condition, capture_output=True)
+
+    def run_script(
+        self,
+        title: str,
+        script: str,
+        *,
+        skip_condition: typing.Callable[[], bool] | None = None,
+    ) -> None:
+        _run_script(self, title, script, skip_condition=skip_condition, capture_output=True)
+
 
 class UIFrontend(typing.Protocol):
     def run_step(self, name: str) -> typing.ContextManager[None]: ...
@@ -247,16 +300,38 @@ class UIFrontend(typing.Protocol):
         self, steps: typing.Sequence[typing.Callable[["typing.Self"], None]]
     ) -> typing.Sequence[typing.Callable[["typing.Self"], None]]: ...
 
+    def run_commands(
+        self,
+        titel: str,
+        *commands: list[str],
+        skip_condition: typing.Callable[[], bool] | None = None,
+    ) -> None: ...
+
+    def run_script(
+        self,
+        title: str,
+        script: str,
+        *,
+        skip_condition: typing.Callable[[], bool] | None = None,
+    ) -> None: ...
+
 
 @contextlib.contextmanager
 def get_frontend() -> typing.Generator[UIFrontend, None, None]:
     import argparse
 
     parser = argparse.ArgumentParser(description="Setup VM")
+    parser.add_argument("--simple", action="store_true", help="Run without fancy curses")
     parser.add_argument("--unattended", action="store_true", help="Run without user interaction")
+    parser.add_argument("--verbose", action="store_true", help="Show output of commands when not running in curses")
+    args = parser.parse_args()
 
-    if parser.parse_args().unattended or not sys.stdout.isatty():
-        yield SimpleCLIFrontend()
+    if args.unattended or not sys.stdout.isatty():
+        yield SimpleCLIFrontend(interactive_step_selection=False, show_output=args.verbose)
+        return
+
+    if args.simple:
+        yield SimpleCLIFrontend(interactive_step_selection=True, show_output=args.verbose)
         return
 
     try:
@@ -308,11 +383,12 @@ def get_sudo() -> None:
     threading.Thread(target=sudo_loop, daemon=True).start()
 
 
-def run_commands(
+def _run_commands(
     frontend: UIFrontend,
     titel: str,
     *commands: list[str],
     skip_condition: typing.Callable[[], bool] | None = None,
+    capture_output: bool = True,
 ) -> None:
     with frontend.run_step(titel):
         if skip_condition is not None:
@@ -320,15 +396,16 @@ def run_commands(
                 raise StepSkipped()
 
         for command in commands:
-            subprocess.run(command, capture_output=True, check=True)
+            subprocess.run(command, capture_output=capture_output, check=True)
 
 
-def run_script(
+def _run_script(
     frontend: UIFrontend,
     title: str,
     script: str,
     *,
     skip_condition: typing.Callable[[], bool] | None = None,
+    capture_output: bool = True,
 ) -> None:
     with frontend.run_step(title):
         if skip_condition is not None:
@@ -339,7 +416,7 @@ def run_script(
             script,
             shell=True,
             check=True,
-            capture_output=True,
+            capture_output=capture_output,
         )
 
 
@@ -459,8 +536,7 @@ def check_prerequisites(frontend: UIFrontend) -> None:
 
 
 def update_system(frontend: UIFrontend):
-    run_commands(
-        frontend,
+    frontend.run_commands(
         "Update System",
         ["sudo", "-n", "apt", "update", "-qq"],
         ["sudo", "-n", "apt", "full-upgrade", "--auto-remove", "-y", "--purge", "-qq"],
@@ -476,8 +552,7 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
             or pathlib.Path("/etc/apt/sources.list.d/regolith.list").exists()
         )
 
-    run_script(
-        frontend,
+    frontend.run_script(
         "Setup Regolith",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
@@ -499,8 +574,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
             or pathlib.Path("/etc/apt/sources.list.d/regolith.list").exists()
         )
 
-    run_script(
-        frontend,
+    frontend.run_script(
         "Setup Regolith",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo tee /usr/share/keyrings/regolith-archive-keyring.gpg > /dev/null
@@ -522,8 +596,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
             or pathlib.Path("/etc/apt/sources.list.d/regolith.list").exists()
         )
 
-    run_script(
-        frontend,
+    frontend.run_script(
         "Setup Regolith",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
@@ -542,15 +615,13 @@ def setup_virtual_box_guest_additions(frontend):
 
         return pwd.getpwuid(os.getuid())[0]
 
-    run_commands(
-        frontend,
+    frontend.run_commands(
         "Virtualbox Dependencies",
         ["sudo", "-n", "apt", "install", "-y", "-qq", "dkms", "gcc", "perl"],
         skip_condition=are_packages_installed_check("dkms", "gcc", "perl"),
     )
 
-    run_script(
-        frontend,
+    frontend.run_script(
         "Virtualbox Guest Addtions",
         f"""
         cd /media/{get_username()}/VBox_GAs_*/
@@ -561,8 +632,7 @@ def setup_virtual_box_guest_additions(frontend):
 
 
 def zsh_ohmyzsh(frontend: UIFrontend):
-    run_script(
-        frontend,
+    frontend.run_script(
         "zsh & ohmyzsh",
         """
         sudo -n apt-get install -y -qq zsh git fzf
@@ -620,8 +690,7 @@ def helper_tools(frontend: UIFrontend):
         "nnn",  # file manager
     ]
 
-    run_commands(
-        frontend,
+    frontend.run_commands(
         "Helper Tools",
         ["sudo", "-n", "apt", "install", "-y", "-qq", *tools],
         skip_condition=are_packages_installed_check(*tools),
@@ -629,8 +698,7 @@ def helper_tools(frontend: UIFrontend):
 
 
 def vscode(frontend: UIFrontend) -> None:
-    run_script(
-        frontend,
+    frontend.run_script(
         "vs code",
         """
         wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor >packages.microsoft.gpg
@@ -652,8 +720,7 @@ def devops_ssh(frontend: UIFrontend):
 
         return config.exists() or "Host ssh.dev.azure.com" in config.read_text()
 
-    run_script(
-        frontend,
+    frontend.run_script(
         "Azure Devops",
         """
         if [ ! -d "$HOME/.ssh" ]; then
@@ -673,8 +740,7 @@ def devops_ssh(frontend: UIFrontend):
 
 
 def watchdog(frontend: UIFrontend):
-    run_commands(
-        frontend,
+    frontend.run_commands(
         "install watchdog",
         ["sudo", "-n", "apt", "install", "-qq", "-y", "watchdog"],
         ["sudo", "-n", "systemctl", "enable", "watchdog.service"],
@@ -706,8 +772,7 @@ def git_bb(frontend: UIFrontend):
 
 
 def git(frontend: UIFrontend):
-    run_commands(
-        frontend,
+    frontend.run_commands(
         "setup git",
         ["git", "config", "--global", "init.defaultBranch", "main"],
         ["git", "config", "--global", "user.name", "Florian Sattler"],
@@ -719,8 +784,7 @@ def deadsnakes_python(frontend: UIFrontend):
     def skip_condition() -> bool:
         return any(pathlib.Path("/etc/apt/sources.list.d/").glob("deadsnakes-ubuntu-ppa-*.list"))
 
-    run_commands(
-        frontend,
+    frontend.run_commands(
         "deadsnakes python ppa",
         ["sudo", "-n", "apt-get", "install", "--yes", "software-properties-common"],
         ["sudo", "-n", "add-apt-repository", "--yes", "ppa:deadsnakes/ppa"],
@@ -729,8 +793,7 @@ def deadsnakes_python(frontend: UIFrontend):
 
 
 def install_docker_and_compose(frontend: UIFrontend):
-    run_script(
-        frontend,
+    frontend.run_script(
         "install docker and docker-compose",
         "curl -fsSL https://get.docker.com | sudo -n sh",
         skip_condition=are_packages_installed_check("docker-ce", "docker-ce-cli", "containerd.io"),
