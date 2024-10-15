@@ -490,6 +490,29 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
     )
 
 
+def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
+    def skip_condition() -> bool:
+        releases_path = pathlib.Path("/etc/os-release")
+        return (
+            not releases_path.exists()
+            or "UBUNTU_CODENAME=nobel" not in releases_path.read_text()
+            or pathlib.Path("/etc/apt/sources.list.d/regolith.list").exists()
+        )
+
+    run_script(
+        frontend,
+        "Setup Regolith",
+        """
+        wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo tee /usr/share/keyrings/regolith-archive-keyring.gpg > /dev/null
+        echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
+        sudo -n apt update -qq
+        sudo -n apt install -y -qq regolith-system-ubuntu
+        echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
+        """,  # noqa: E501
+        skip_condition=skip_condition,
+    )
+
+
 def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
     def skip_condition() -> bool:
         releases_path = pathlib.Path("/etc/os-release")
@@ -770,6 +793,7 @@ def main() -> int:
         update_system,
         setup_regolith_ubuntu_yammy,
         setup_regolith_debian_bookworm,
+        setup_regolith_ubuntu_nobel,
         setup_virtual_box_guest_additions,
         zsh_ohmyzsh,
         update_alias,
