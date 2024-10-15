@@ -733,7 +733,7 @@ def devops_ssh(frontend: UIFrontend):
 
     def append_ssh_config() -> None:
         config = pathlib.Path.home() / ".ssh" / "config"
-        config_text = config.read_text()
+        config_text = config.read_text() if config.exists() else ""
         config.write_text(
             "\n".join(
                 [
