@@ -559,7 +559,7 @@ def check_prerequisites(frontend: UIFrontend) -> None:
     with frontend.run_step("wget"):
         if shutil.which("wget") is None:
             try:
-                subprocess.run(["sudo", "-n", "apt", "install", "-y", "-qq", "wget"], check=True)
+                subprocess.run(["sudo", "-n", "apt", "install", "-y", "-qq", "wget"], check=True, capture_output=True)
             except subprocess.CalledProcessError:
                 raise StepFailure()
 
