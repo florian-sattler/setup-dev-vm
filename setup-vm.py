@@ -22,9 +22,9 @@ UNICODE_SUPPORT = (
     and sys.stdout.isatty()
     and os.getenv("TERM") not in ("dumb", "emacs", "linux")
 )
-SKIP_CHAR = "─" if UNICODE_SUPPORT else "-"
-FAIL_CHAR = "✗" if UNICODE_SUPPORT else "X"
-OK_CHAR = "✔" if UNICODE_SUPPORT else "O"
+SKIP_CHAR = "─" if UNICODE_SUPPORT else "/"
+FAIL_CHAR = "✗" if UNICODE_SUPPORT else "E"
+OK_CHAR = "✔" if UNICODE_SUPPORT else "+"
 RUNNING_CHAR = "▶" if UNICODE_SUPPORT else ">"
 
 ERROR_TEXT: str | None = None
