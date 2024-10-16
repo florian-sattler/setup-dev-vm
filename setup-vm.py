@@ -625,7 +625,7 @@ def setup_virtual_box_guest_additions(frontend):
 
     frontend.run_commands(
         "Virtualbox Dependencies",
-        ["sudo", "-n", "apt", "install", "-y", "-qq", "dkms", "gcc", "perl"],
+        ["sudo", "-n", "apt", "install", "-y", "-qq", "dkms", "gcc", "perl", "bzip2"],
         skip_condition=are_packages_installed_check("dkms", "gcc", "perl"),
     )
 
