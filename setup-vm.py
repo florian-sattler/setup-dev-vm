@@ -321,7 +321,7 @@ def get_frontend() -> typing.Generator[UIFrontend, None, None]:
     import argparse
 
     parser = argparse.ArgumentParser(description="Setup VM")
-    parser.add_argument("--simple", action="store_true", help="Run without fancy curses")
+    parser.add_argument("--fancy", action="store_true", help="Run with fancy curses")
     parser.add_argument("--unattended", action="store_true", help="Run without user interaction")
     parser.add_argument("--verbose", action="store_true", help="Show output of commands when not running in curses")
     args = parser.parse_args()
@@ -330,7 +330,7 @@ def get_frontend() -> typing.Generator[UIFrontend, None, None]:
         yield SimpleCLIFrontend(interactive_step_selection=False, show_output=args.verbose)
         return
 
-    if args.simple:
+    if not args.fancy:
         yield SimpleCLIFrontend(interactive_step_selection=True, show_output=args.verbose)
         return
 
