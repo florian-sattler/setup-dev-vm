@@ -877,7 +877,11 @@ def git(frontend: UIFrontend):
 
 def deadsnakes_python(frontend: UIFrontend):
     def skip_condition() -> bool:
-        return any(pathlib.Path("/etc/apt/sources.list.d/").glob("deadsnakes-ubuntu-ppa-*.list"))
+        return any(
+            i
+            for i in pathlib.Path("/etc/apt/sources.list.d/").glob("deadsnakes-ubuntu-ppa-*")
+            if i.name.endswith((".list", ".sources"))
+        )
 
     frontend.run_commands(
         "deadsnakes python ppa",
