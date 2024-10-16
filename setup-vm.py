@@ -661,7 +661,7 @@ def setup_virtual_box_guest_additions(frontend: UIFrontend):
 
     with frontend.run_step("Virtualbox Investigation"):
         # check if virtualbox guest additions are installed
-        if shutil.which("VBoxClient") is None:
+        if shutil.which("VBoxClient") is not None:
             return
 
         # check if virtualbox guest additions are mounted under /media/USERNAME/VBox_GAs_*/
@@ -681,7 +681,7 @@ def setup_virtual_box_guest_additions(frontend: UIFrontend):
 
             # try to mount virtualbox guest additions from all available cd drives
             mount_destination = pathlib.Path("/media") / get_username() / "vboxtest"
-            mount_destination.mkdir(exist_ok=True, parents=True)
+            subprocess.run(["sudo", "-n", "mkdir", "-p", str(mount_destination)], capture_output=True, check=True)
             for drive in drives:
                 mount_result = subprocess.run(
                     ["sudo", "-n", "mount", "-t", "iso9660", str(drive), str(mount_destination)],
@@ -713,7 +713,7 @@ def setup_virtual_box_guest_additions(frontend: UIFrontend):
         sudo -n ./VBoxLinuxAdditions.run --quiet
         sudo -n usermod -aG vboxsf $USER
         """,
-        skip_condition=is_kernel_module_loaded("vboxguest"),
+        skip_condition=is_command_available("VBoxClient"),
     )
 
 
