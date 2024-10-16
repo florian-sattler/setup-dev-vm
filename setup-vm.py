@@ -634,6 +634,7 @@ def setup_virtual_box_guest_additions(frontend):
         f"""
         cd /media/{get_username()}/VBox_GAs_*/
         sudo -n ./VBoxLinuxAdditions.run --quiet
+        sudo -n usermod -aG vboxsf $USER
         """,
         skip_condition=is_kernel_module_loaded("vboxguest"),
     )
@@ -813,7 +814,9 @@ def deadsnakes_python(frontend: UIFrontend):
 def install_docker_and_compose(frontend: UIFrontend):
     frontend.run_script(
         "install docker and docker-compose",
-        "curl -fsSL https://get.docker.com | sudo -n sh",
+        """curl -fsSL https://get.docker.com | sudo -n sh
+        sudo -n usermod -aG docker $USER
+        """,
         skip_condition=are_packages_installed_check("docker-ce", "docker-ce-cli", "containerd.io"),
     )
 
