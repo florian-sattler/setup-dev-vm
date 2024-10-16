@@ -22,9 +22,9 @@ UNICODE_SUPPORT = (
     and sys.stdout.isatty()
     and os.getenv("TERM") not in ("dumb", "emacs", "linux")
 )
-SKIP_CHAR = "─" if UNICODE_SUPPORT else "/"
+SKIP_CHAR = "─" if UNICODE_SUPPORT else "-"
 FAIL_CHAR = "✗" if UNICODE_SUPPORT else "E"
-OK_CHAR = "✔" if UNICODE_SUPPORT else "+"
+OK_CHAR = "✔" if UNICODE_SUPPORT else "."
 RUNNING_CHAR = "▶" if UNICODE_SUPPORT else ">"
 
 ERROR_TEXT: str | None = None
@@ -593,7 +593,7 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
-        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
         mkdir -p ~/.config/regolith3
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
@@ -616,7 +616,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo tee /usr/share/keyrings/regolith-archive-keyring.gpg > /dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
-        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
         mkdir -p ~/.config/regolith3/
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
@@ -639,7 +639,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
-        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
         mkdir -p ~/
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
