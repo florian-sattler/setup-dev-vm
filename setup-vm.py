@@ -724,20 +724,20 @@ def vscode(frontend: UIFrontend) -> None:
 
 
 def devops_ssh(frontend: UIFrontend):
-    def skip_condition() -> bool:
-        config = pathlib.Path.home() / ".ssh" / "config"
+    config_path = pathlib.Path.home() / ".ssh" / "config"
 
-        if not config.exists():
+    def skip_condition() -> bool:
+        if not config_path.exists():
             return False
 
-        return "Host ssh.dev.azure.com" in config.read_text()
+        return "Host ssh.dev.azure.com" in config_path.read_text()
 
     def append_ssh_config() -> None:
-        config = pathlib.Path.home() / ".ssh" / "config"
-        config.write_text(
+        config_path.touch(0o600)
+        config_path.write_text(
             "\n".join(
                 [
-                    config.read_text(),
+                    config_path.read_text(),
                     "Host ssh.dev.azure.com",
                     "    User git",
                     "    PubkeyAcceptedAlgorithms +ssh-rsa",
@@ -750,9 +750,8 @@ def devops_ssh(frontend: UIFrontend):
     frontend.run_commands(
         "Azure Devops",
         ["sudo", "-n", "apt", "install", "-y", "-qq", "ssh"],
-        ["mkdir", "-p", "$HOME/.ssh"],
-        ["chmod", "700", "$HOME/.ssh"],
-        ["touch", "$HOME/.ssh/config"],
+        ["mkdir", "-p", str(config_path.parent)],
+        ["chmod", "700", str(config_path.parent)],
         append_ssh_config,
         skip_condition=skip_condition,
     )
