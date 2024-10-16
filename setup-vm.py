@@ -959,6 +959,47 @@ def install_google_chrome(frontend: UIFrontend):
     )
 
 
+def install_firefox(frontend: UIFrontend):
+    # check if running ubuntu
+    if "ubuntu" in pathlib.Path("/etc/os-release").read_text():
+        # install without snap
+        frontend.run_script(
+            "install firefox",
+            """
+            sudo -n add-apt-repository -y ppa:mozillateam/ppa
+            echo '
+Package: *
+Pin: release o=LP-PPA-mozillateam
+Pin-Priority: 1001
+
+Package: firefox
+Pin: version 1:1snap*
+Pin-Priority: -1
+' | sudo tee /etc/apt/preferences.d/mozilla-firefox
+
+            sudo -n apt update -qq
+            sudo -n apt install -y -qq firefox
+            """,  # noqa: E501
+            skip_condition=is_command_available("firefox"),
+        )
+    elif "debian" in pathlib.Path("/etc/os-release").read_text():
+        frontend.run_script(
+            "install firefox",
+            """
+            sudo -n apt install -y -qq firefox-esr
+            """,  # noqa: E501
+            skip_condition=is_command_available("firefox"),
+        )
+    else:
+        frontend.run_script(
+            "install firefox",
+            """
+            sudo -n apt install -y -qq firefox
+            """,  # noqa: E501
+            skip_condition=is_command_available("firefox"),
+        )
+
+
 #
 # Invocation
 #
@@ -986,6 +1027,7 @@ def main() -> int:
         setup_git_worktree_clone,
         deadsnakes_python,
         install_google_chrome,
+        install_firefox,
     ]
 
     global ERROR_TEXT
