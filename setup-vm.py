@@ -341,7 +341,7 @@ def get_frontend() -> typing.Generator[UIFrontend, None, None]:
     parser.add_argument("--verbose", action="store_true", help="Show output of commands when not running in curses")
     args = parser.parse_args()
 
-    if args.unattended or not sys.stdout.isatty():
+    if args.unattended or not sys.stdout.isatty() or not sys.stdin.isatty():
         yield SimpleCLIFrontend(interactive_step_selection=False, show_output=args.verbose)
         return
 
