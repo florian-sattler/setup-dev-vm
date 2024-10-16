@@ -549,6 +549,8 @@ def check_prerequisites(frontend: UIFrontend) -> None:
         if shutil.which("gpg") is None:
             raise StepFailure()
 
+    (pathlib.Path.home() / ".config").mkdir(exist_ok=True, parents=True)
+
 
 def update_system(frontend: UIFrontend):
     frontend.run_commands(
@@ -597,7 +599,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu
-        mkdir -p ~/
+        mkdir -p ~/.config/regolith3/
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
