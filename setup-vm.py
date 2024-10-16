@@ -17,6 +17,16 @@ import typing
 # CLI Frontend
 #
 
+UNICODE_SUPPORT = (
+    sys.stdout.encoding.lower() == "utf-8"
+    and sys.stdout.isatty()
+    and os.getenv("TERM") not in ("dumb", "emacs", "linux")
+)
+SKIP_CHAR = "─" if UNICODE_SUPPORT else "-"
+FAIL_CHAR = "✗" if UNICODE_SUPPORT else "X"
+OK_CHAR = "✔" if UNICODE_SUPPORT else "O"
+RUNNING_CHAR = "▶" if UNICODE_SUPPORT else ">"
+
 ERROR_TEXT: str | None = None
 
 
@@ -32,6 +42,11 @@ class SimpleCLIFrontend:
     def __init__(self, *, show_output: bool, interactive_step_selection: bool):
         self.show_output = show_output
         self.interactive_step_selection = interactive_step_selection
+        self.unicode = (
+            sys.stdout.encoding.lower() == "utf-8"
+            and sys.stdout.isatty()
+            and os.getenv("TERM") not in ("dumb", "emacs", "linux")
+        )
 
     @contextlib.contextmanager
     def run_step(self, name: str) -> typing.Generator[None, None, None]:
@@ -40,16 +55,16 @@ class SimpleCLIFrontend:
             yield
 
         except StepSkipped:
-            print("─")
+            print(SKIP_CHAR)
 
         except Exception as e:
-            print("✗")
+            print(FAIL_CHAR)
             global ERROR_TEXT
             ERROR_TEXT = stringify_exception(e)
             raise SystemExit(1)
 
         else:
-            print("✓")
+            print(OK_CHAR)
 
     def stop(self) -> None:
         pass
@@ -99,14 +114,14 @@ def draw_line(stdscr: window, line, step_is_selected: bool, step_is_active: bool
     stdscr.move(line, 0)
 
     if step_is_selected:
-        stdscr.addstr("▶", curses.color_pair(3))
+        stdscr.addstr(RUNNING_CHAR, curses.color_pair(3))
     else:
         stdscr.addstr(" ")
 
     if step_is_active:
-        stdscr.addstr(" ✔ " if step_is_active else " ✗ ", curses.color_pair(1))
+        stdscr.addstr(f" {OK_CHAR} " if step_is_active else f" {FAIL_CHAR} ", curses.color_pair(1))
     else:
-        stdscr.addstr(" ✗ ", curses.color_pair(2))
+        stdscr.addstr(f" {FAIL_CHAR} ", curses.color_pair(2))
 
     stdscr.addstr(step_name)
 
@@ -197,11 +212,11 @@ def draw_steps_progress(stdscr: window, lines: list[tuple[str, StepState]], spin
 
     for i, (name, state) in enumerate(visible_lines):
         if state == StepState.SUCCESS:
-            stdscr.addstr(i, 0, f"✓ {name}")
+            stdscr.addstr(i, 0, f"{OK_CHAR} {name}")
         elif state == StepState.FAILURE:
-            stdscr.addstr(i, 0, f"✗ {name}")
+            stdscr.addstr(i, 0, f"{FAIL_CHAR} {name}")
         elif state == StepState.SKIPPED:
-            stdscr.addstr(i, 0, f"─ {name}")
+            stdscr.addstr(i, 0, f"{SKIP_CHAR} {name}")
         elif state == StepState.RUNNING:
             stdscr.addstr(i, 0, f"{spinner_char} {name}")
 
@@ -210,10 +225,10 @@ def draw_steps_progress(stdscr: window, lines: list[tuple[str, StepState]], spin
 
 def stringify_lines(lines: list[tuple[str, StepState]]) -> str:
     icon = {
-        StepState.SUCCESS: "✓",
-        StepState.FAILURE: "✗",
-        StepState.SKIPPED: "─",
-        StepState.RUNNING: "▶",
+        StepState.SUCCESS: OK_CHAR,
+        StepState.FAILURE: FAIL_CHAR,
+        StepState.SKIPPED: SKIP_CHAR,
+        StepState.RUNNING: RUNNING_CHAR,
     }
     return "\n".join([f"{icon[state]} {name}" for name, state in lines])
 
