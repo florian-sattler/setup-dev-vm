@@ -453,6 +453,13 @@ def set_environment() -> None:
     os.environ["DEBIAN_FRONTEND"] = "noninteractive"
 
 
+def is_command_available(command: str):
+    def skip_condition() -> bool:
+        return shutil.which(command) is None
+
+    return skip_condition
+
+
 #
 # Data
 #
@@ -617,7 +624,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
     )
 
 
-def setup_virtual_box_guest_additions(frontend):
+def setup_virtual_box_guest_additions(frontend: UIFrontend):
     def get_username():
         import pwd  # after unix check is done
 
@@ -629,10 +636,57 @@ def setup_virtual_box_guest_additions(frontend):
         skip_condition=are_packages_installed_check("dkms", "gcc", "perl"),
     )
 
+    with frontend.run_step("Virtualbox Investigation"):
+        # check if virtualbox guest additions are installed
+        if shutil.which("VBoxClient") is None:
+            return
+
+        # check if virtualbox guest additions are mounted under /media/USERNAME/VBox_GAs_*/
+        vbox_gas_dir = (
+            guest_dirs[-1]
+            if (
+                guest_dirs := sorted(
+                    (pathlib.Path("/media") / get_username()).glob("VBox_GAs_*/VBoxLinuxAdditions.run")
+                )
+            )
+            else None
+        )
+
+        if not vbox_gas_dir:
+            # find all cd drives
+            drives = pathlib.Path("/dev").glob("sr*")
+
+            # try to mount virtualbox guest additions from all available cd drives
+            mount_destination = pathlib.Path("/media") / get_username() / "vboxtest"
+            mount_destination.mkdir(exist_ok=True, parents=True)
+            for drive in drives:
+                mount_result = subprocess.run(
+                    ["sudo", "-n", "mount", "-t", "iso9660", str(drive), str(mount_destination)],
+                    capture_output=True,
+                )
+                if mount_result.returncode != 0:
+                    continue
+
+                # check whether the mounted cd drive contains the virtualbox guest additions
+                run_path = mount_destination / "VBoxLinuxAdditions.run"
+                if run_path.exists():
+                    vbox_gas_dir = run_path
+                    break
+
+                # unmount and try another drive
+                subprocess.run(
+                    ["sudo", "-n", "umount", str(mount_destination)],
+                    check=True,
+                    capture_output=True,
+                )
+
+        if not vbox_gas_dir:
+            raise StepFailure()
+
     frontend.run_script(
         "Virtualbox Guest Addtions",
         f"""
-        cd /media/{get_username()}/VBox_GAs_*/
+        cd {vbox_gas_dir}
         sudo -n ./VBoxLinuxAdditions.run --quiet
         sudo -n usermod -aG vboxsf $USER
         """,
