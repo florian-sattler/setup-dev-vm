@@ -985,6 +985,7 @@ def main() -> int:
         git_bb,
         setup_git_worktree_clone,
         deadsnakes_python,
+        install_google_chrome,
     ]
 
     global ERROR_TEXT
