@@ -574,6 +574,7 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu
+        mkdir -p ~/.config/regolith3
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -596,6 +597,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu
+        mkdir -p ~/
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -618,6 +620,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
+        mkdir -p ~/
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
