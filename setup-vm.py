@@ -541,9 +541,12 @@ def check_prerequisites(frontend: UIFrontend) -> None:
         if shutil.which("apt") is None:
             raise StepFailure()
 
-    with frontend.run_step("locate wget"):
+    with frontend.run_step("wget"):
         if shutil.which("wget") is None:
-            raise StepFailure()
+            try:
+                subprocess.run(["sudo", "-n", "apt", "install", "-y", "-qq", "wget"], check=True)
+            except subprocess.CalledProcessError:
+                raise StepFailure()
 
     with frontend.run_step("locate gpg"):
         if shutil.which("gpg") is None:
