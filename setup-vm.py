@@ -588,7 +588,7 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
         )
 
     frontend.run_script(
-        "Setup Regolith - yammy",
+        "Setup Regolith (yammy)",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
@@ -611,7 +611,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         )
 
     frontend.run_script(
-        "Setup Regolith - noble",
+        "Setup Regolith (noble)",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo tee /usr/share/keyrings/regolith-archive-keyring.gpg > /dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
@@ -634,7 +634,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
         )
 
     frontend.run_script(
-        "Setup Regolith - bookworm",
+        "Setup Regolith (bookworm)",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
@@ -944,6 +944,19 @@ git_worktree_clone() {
             raise StepSkipped()
 
         config.write_text(config_text + shell_function)
+
+
+def install_google_chrome(frontend: UIFrontend):
+    frontend.run_script(
+        "install google chrome",
+        """
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo tee /etc/apt/trusted.gpg.d/google.asc >/dev/null
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo -n tee /etc/apt/sources.list.d/google-chrome.list
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
+        sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq google-chrome-stable
+        """,  # noqa: E501
+        skip_condition=pathlib.Path("/etc/apt/sources.list.d/google-chrome.list").exists,
+    )
 
 
 #
