@@ -578,7 +578,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         releases_path = pathlib.Path("/etc/os-release")
         return (
             not releases_path.exists()
-            or "UBUNTU_CODENAME=nobel" not in releases_path.read_text()
+            or "UBUNTU_CODENAME=noble" not in releases_path.read_text()
             or pathlib.Path("/etc/apt/sources.list.d/regolith.list").exists()
         )
 
