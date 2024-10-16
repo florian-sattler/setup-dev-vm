@@ -1011,10 +1011,10 @@ def main() -> int:
     all_steps: typing.Sequence[typing.Callable[[UIFrontend], None]] = [
         check_prerequisites,
         update_system,
+        setup_virtual_box_guest_additions,
         setup_regolith_ubuntu_yammy,
         setup_regolith_debian_bookworm,
         setup_regolith_ubuntu_nobel,
-        setup_virtual_box_guest_additions,
         zsh_ohmyzsh,
         update_alias,
         install_docker_and_compose,
