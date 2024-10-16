@@ -588,7 +588,7 @@ def setup_regolith_ubuntu_yammy(frontend: UIFrontend) -> None:
         )
 
     frontend.run_script(
-        "Setup Regolith",
+        "Setup Regolith - yammy",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-ubuntu-jammy-amd64 jammy main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
@@ -611,7 +611,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         )
 
     frontend.run_script(
-        "Setup Regolith",
+        "Setup Regolith - noble",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo tee /usr/share/keyrings/regolith-archive-keyring.gpg > /dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
@@ -634,7 +634,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
         )
 
     frontend.run_script(
-        "Setup Regolith",
+        "Setup Regolith - bookworm",
         """
         wget -qO - https://regolith-desktop.org/regolith.key | gpg --dearmor | sudo -n tee /usr/share/keyrings/regolith-archive-keyring.gpg >/dev/null
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
