@@ -482,19 +482,20 @@ def is_command_available(command: str):
 better_branch_script = """
 #!/bin/bash
 
+set -euo pipefail
+
 # Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NO_COLOR='\033[0m'
-BLUE='\033[0;34m'
-YELLOW='\033[0;33m'
-NO_COLOR='\033[0m'
+RED='[0;31m'
+GREEN='[0;32m'
+NO_COLOR='[0m'
+BLUE='[0;34m'
+YELLOW='[0;33m'
+NO_COLOR='[0m'
 
 width1=5
 width2=6
-width3=45
-width4=20
-width5=40
+width3=40
+width4=18
 
 # Function to count commits
 count_commits() {
@@ -509,30 +510,32 @@ count_commits() {
 # Main script
 main_branch=$(git rev-parse HEAD)
 
-printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" "Ahead" "Behind" "Branch" "Last Commit"  " "
+printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}
+" "Ahead" "Behind" "Branch" "Last Commit"
 
 # Separator line for clarity
-printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" "-----" "------" "------------------------------" "-------------------" " "
-
+printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}
+" "-----" "------" "------------------------------" "-----------------"
 
 format_string="%(objectname:short)@%(refname:short)@%(committerdate:relative)"
-IFS=$'\n'
+IFS=$'
+'
 
 for branchdata in $(git for-each-ref --sort=-authordate --format="$format_string" refs/heads/ --no-merged); do
     sha=$(echo "$branchdata" | cut -d '@' -f1)
     branch=$(echo "$branchdata" | cut -d '@' -f2)
     time=$(echo "$branchdata" | cut -d '@' -f3)
     if [ "$branch" != "$main_branch" ]; then
-            # Get branch description
-            description=$(git config branch."$branch".description)
+        # Count commits ahead and behind
+        ahead_behind=$(count_commits "$sha" "$main_branch")
+        ahead=$(echo "$ahead_behind" | cut -f2)
+        behind=$(echo "$ahead_behind" | cut -f1)
 
-            # Count commits ahead and behind
-            ahead_behind=$(count_commits "$sha" "$main_branch")
-            ahead=$(echo "$ahead_behind" | cut -f2)
-            behind=$(echo "$ahead_behind" | cut -f1)
+        branchName=$(echo "$branch" | cut -c "1-$width3")
 
-            # Display branch info
-        printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}%-${width5}s\n" $ahead $behind $branch "$time" "$description"
+        # Display branch info
+        printf "${GREEN}%-${width1}s ${RED}%-${width2}s ${BLUE}%-${width3}s ${YELLOW}%-${width4}s ${NO_COLOR}
+" "$ahead" "$behind" "$branchName" "$time"
     fi
 done
 """  # noqa: E501
