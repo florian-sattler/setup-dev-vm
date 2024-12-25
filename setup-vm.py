@@ -552,6 +552,10 @@ def check_prerequisites(frontend: UIFrontend) -> None:
         if os.getuid() == 0:
             raise StepFailure()
 
+    with frontend.run_step("locate sudo"):
+        if shutil.which("sudo") is None:
+            raise StepFailure()
+
     with frontend.run_step("locate apt"):
         if shutil.which("apt") is None:
             raise StepFailure()
@@ -560,6 +564,13 @@ def check_prerequisites(frontend: UIFrontend) -> None:
         if shutil.which("wget") is None:
             try:
                 subprocess.run(["sudo", "-n", "apt", "install", "-y", "-qq", "wget"], check=True, capture_output=True)
+            except subprocess.CalledProcessError:
+                raise StepFailure()
+
+    with frontend.run_step("curl"):
+        if shutil.which("curl") is None:
+            try:
+                subprocess.run(["sudo", "-n", "apt", "install", "-y", "-qq", "curl"], check=True, capture_output=True)
             except subprocess.CalledProcessError:
                 raise StepFailure()
 
@@ -617,7 +628,7 @@ def setup_regolith_ubuntu_nobel(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_2-ubuntu-noble-amd64 noble main" | sudo tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-system-ubuntu regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
-        mkdir -p ~/.config/regolith3/
+        mkdir -p ~/.config/regolith3
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
@@ -640,7 +651,7 @@ def setup_regolith_debian_bookworm(frontend: UIFrontend) -> None:
         echo deb "[arch=amd64 signed-by=/usr/share/keyrings/regolith-archive-keyring.gpg] https://regolith-desktop.org/release-3_1-debian-bookworm-amd64 bookworm main" | sudo -n tee /etc/apt/sources.list.d/regolith.list
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt update -qq
         sudo -n NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive apt install -y -qq regolith-desktop regolith-session-flashback regolith-look-lascaille regolith-lightdm-config lightdm
-        mkdir -p ~/
+        mkdir -p ~/.config/regolith3
         echo "wm.gaps.focus_follows_mouse: true" >> ~/.config/regolith3/Xresources
         """,  # noqa: E501
         skip_condition=skip_condition,
