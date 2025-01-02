@@ -779,13 +779,15 @@ def helper_tools(frontend: UIFrontend):
         "lzip",
         "lzop",
         "p7zip-full",
-        "rar",
         "unace",
         "unalz",
-        "unrar",
         "nano",  # editor
         "nnn",  # file manager
     ]
+
+    if "debian" not in pathlib.Path("/etc/os-release").read_text():
+        tools.append("rar")
+        tools.append("unrar")
 
     frontend.run_commands(
         "Helper Tools",
@@ -888,7 +890,7 @@ def git(frontend: UIFrontend):
 
 def deadsnakes_python(frontend: UIFrontend):
     def skip_condition() -> bool:
-        return any(
+        return "debian" in pathlib.Path("/etc/os-release").read_text() or any(
             i
             for i in pathlib.Path("/etc/apt/sources.list.d/").glob("deadsnakes-ubuntu-ppa-*")
             if i.name.endswith((".list", ".sources"))
