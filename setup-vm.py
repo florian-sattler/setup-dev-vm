@@ -538,6 +538,11 @@ done
 """  # noqa: E501
 
 
+delete_branches_script = """
+git fetch -p && for branch in $(git for-each-ref --format '%(refname) %(upstream:track)' refs/heads | awk '$2 == "[gone]" {sub("refs/heads/", "", $1); print $1}'); do git branch -D $branch; done
+"""  # noqa: E501
+
+
 #
 # Actual steps
 #
@@ -879,6 +884,28 @@ def git_bb(frontend: UIFrontend):
         )
 
 
+def git_db(frontend: UIFrontend):
+    with frontend.run_step("git delete branches"):
+        local_bin = pathlib.Path.home() / ".local" / "bin"
+
+        if not local_bin.exists():
+            local_bin.mkdir(parents=True, exist_ok=True)
+
+        script_dst = local_bin / "delete-git-branches.sh"
+
+        if script_dst.exists():
+            raise StepSkipped()
+
+        script_dst.write_text(delete_branches_script)
+        script_dst.chmod(0o775)
+
+        subprocess.run(
+            ["git", "config", "--global", "alias.db", f"!{script_dst}"],
+            capture_output=True,
+            check=True,
+        )
+
+
 def git(frontend: UIFrontend):
     frontend.run_commands(
         "setup git",
@@ -1037,6 +1064,7 @@ def main() -> int:
         watchdog,
         git,
         git_bb,
+        git_db,
         setup_git_worktree_clone,
         deadsnakes_python,
         install_google_chrome,
